@@ -1,0 +1,94 @@
+name: Deploy Application and Edge Functions
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy-app:
+    name: Deploy Frontend Application
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          echo "# Supabase Configuration" > .env
+          echo "VITE_SUPABASE_URL=${{ secrets.SUPABASE_PROD_URL }}" >> .env
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_PROD_ANON_KEY }}" >> .env
+
+      - name: Replace project_id in config.toml
+        run: |
+          project_id="${{ secrets.SUPABASE_PROD_PROJECT_ID }}"
+          sed -i "s|project_id = \".*\"|project_id = \"${project_id}\"|" supabase/config.toml
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build project
+        run: npm run build
+
+      - name: Deploy to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: 'us-east-1'
+          S3_BUCKET: 'app.clinero.de'
+        run: |
+          aws s3 sync ./dist s3://$S3_BUCKET --delete
+          aws s3 cp ./dist/index.html s3://$S3_BUCKET/index.html --cache-control "no-cache"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Run Supabase Migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_PROD_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
+          PROJECT_ID: ${{ secrets.SUPABASE_PROD_PROJECT_ID }}
+        run: |
+          supabase --version
+          supabase projects list
+          echo "PROJECT_ID: ${#PROJECT_ID} chars, starts with ${PROJECT_ID:0:2}, ends with ${PROJECT_ID: -2}"
+          echo "SUPABASE_ACCESS_TOKEN: ${#SUPABASE_ACCESS_TOKEN} chars, starts with ${SUPABASE_ACCESS_TOKEN:0:2}, ends with ${SUPABASE_ACCESS_TOKEN: -2}"
+          echo "SUPABASE_DB_PASSWORD: ${#SUPABASE_DB_PASSWORD} chars, starts with ${SUPABASE_DB_PASSWORD:0:2}, ends with ${SUPABASE_DB_PASSWORD: -2}"
+          supabase link --project-ref $PROJECT_ID
+          supabase db push
+
+  deploy-edge-functions:
+    name: Deploy Edge Functions
+    runs-on: ubuntu-latest
+    needs: [deploy-app]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+
+      - name: Deploy Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_PROD_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
+          PROJECT_ID: ${{ secrets.SUPABASE_PROD_PROJECT_ID }}
+        run: |
+          supabase functions deploy --project-ref $PROJECT_ID
+
+  invalidate-cache:
+    name: Invalidate CloudFront Cache
+    needs: [deploy-app, deploy-edge-functions]
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invalidate CloudFront Cache
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          DISTRIBUTION_ID: 'EBLN0BBEJAONV'
+        run: |
+          aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
+
