@@ -4,8 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 // Get environment variables with fallbacks to the current hardcoded values
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://xxx.supabase.co";
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "xxx";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "<<<your-supabase-dev-account-url>>>";
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "<<<supabase-anon-key>>>";
 
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
