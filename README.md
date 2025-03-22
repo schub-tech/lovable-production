@@ -14,7 +14,12 @@ We choose AWS S3 to host our applications alongside deployment via Github action
 
 ### Setting up AWS
 
-> Work in Progres
+Despite there being many ways to deploy a react app (that's what the lovable apps technically are) we choose to create the artefacts in AWS ourselves. In particular this is
+
+- S3 bucket to host files
+- CloudFront for SSL offloading & caching
+
+You can follow a [guide like this](https://medium.com/@Anita-ihuman/deploying-a-react-app-using-aws-s3-and-cloud-front-c0950808bf03https:/) to setup or ask ChatGPT for steps.
 
 ### Deploy via Github Actions
 
@@ -173,11 +178,10 @@ Remark: Supabase url and anon key are publicly exposed in the frontend. The key 
 ## Create tests
 
 ### How to create tests
-> Work in Progres
 
-Run a local supabase instance and create `.env file`
+Our approach has been to setup a local development environment, then use cursor.ai to write an intial set of tests. Thereafter we could ask lovable to create tests in a similar fashion.
 
-Start a local supabase instance with `supabase init` and `supabase start`
+To setup a local development environment, you need to create`.env file` with the following content:
 
 ```jsx
 VITE_SUPABASE_URL=https://your-project-url.supabase.co
@@ -185,10 +189,11 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 ```
 
+Then initialize a loca Supabase instance with `supabase init` and `supabase start`.
+
 ### Have automatic tests upon code pushes
 
 You can use the following github action ([.github/workflows/playwright-tests.yml](https://github.com/schub-tech/lovable-production/blob/main/.github/workflows/playwright-tests.yml)) to have your tests automatically run on each push
-
 
 ```jsx
 
@@ -261,4 +266,4 @@ jobs:
 
 ```
 
-Add playwright.config.ts → local server in github runner is started when playwright test run
+Note: Some of the configuration also happens in [playwright.config.ts](https://github.com/schub-tech/lovable-production/blob/main/playwright.config.ts), be sure to copy that to your repo too.
