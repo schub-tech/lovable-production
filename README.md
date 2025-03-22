@@ -5,14 +5,16 @@ At [Schub Space](https://www.schub.tech) we have some teams shipping their lovab
 ## Table of Content
 
 - [Deploying to production](#deploying-to-production)
-- [Separate databases supabase accounts](#Separate-databases-supabase-accounts)
-- testing
+- [Separate databases supabase accounts](#separate-databases-supabase-accounts)
+- [Create tests](#create-tests)
 
 ## Deploying to production
 
 We choose AWS S3 to host our applications alongside deployment via Github actions.
 
 ### Setting up AWS
+
+> Work in Progres
 
 ### Deploy via Github Actions
 
@@ -34,10 +36,10 @@ In the file itself, replace the following variables
 You also need to store some information in Supabase secrets (you'll find this under functions -> secrets in Supabase)
 
 - VITE_SUPABASE_URL - your production url
-- SUPABASE_PROD_ANON_KEY -
-- SUPABASE_PROD_PROJECT_ID
-- SUPABASE_PROD_ACCESS_TOKEN
-- SUPABASE_PROD_DB_PASSWORD
+- SUPABASE_PROD_ANON_KEY - see below in the [Supabase account section](#Separate-databases-supabase-accounts)
+- SUPABASE_PROD_PROJECT_ID - your Supabase project id
+- SUPABASE_PROD_ACCESS_TOKEN - see below in the [Supabase account section](#Separate-databases-supabase-accounts)
+- SUPABASE_PROD_DB_PASSWORD - the database password you set when creating your Supabase project
 
 ```jsx
 name: Deploy Application and Edge Functions
@@ -145,19 +147,13 @@ A key component for using separated databases is to track database changes via m
 - use the supabase command: `supabase migration new <add_column_to_table_xxx>` to create the migration file and paste the SQL into it.
 - try to tell lovable to create a migrations file.
 
-If you have build your database initially without migrations, you need to create an initial migration. Either get the SQL for that via the Supabase web interface (database -> backup and then copy the the table creation statements only) or you can use `psql`for that
+Make sure you put your migration files into `/supabase/migrations/`
 
-### 2. Code changes
+If you have build your database initially without migrations, you need to create an initial migration. Either get the SQL for that via the Supabase web interface (database -> backup and then copy the the table creation statements only) or you can use `psql`.
 
-Create migration scripts in `/supabase/migrations/`
+Once you have completed these prerequisites you can create a second Supabase project as your production project. Note down the postgres password as you need to put it in a Supabase secret (see deployment section)
 
-→ You can get initial schema.sql from the dev version via psql (or interface)
-
-Update `src/integrations/supabase/client.ts`
-
-→ allow client to use supabase_url and anon_key from .env file
-
-Remark: Supabase url and anon key is always in frontend, but safe if you use RLS for authenticated users
+To enable our app choosing the right database we need to modify the `src/integrations/supabase/client.ts` in your project. Despite the warning not to edit it, we had no problems so far doing so. Do hardcode the values of your Supabase development account here (i.e. replace `<<<your-supabase-dev-account-url>>>` and `<<<supabase-anon-key>>>`). The anon key you'll find in Supabase under [Settings -> Data API](https://supabase.com/dashboard/project/_/settings/api).
 
 ```jsx
 
@@ -166,13 +162,18 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 // Get environment variables with fallbacks to the current hardcoded values
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://xxx.supabase.co";
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "xxx";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "<<<your-supabase-dev-account-url>>>";
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "<<<supabase-anon-key>>>";
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 ```
 
-### 3. Local supabase tests
+Remark: Supabase url and anon key are publicly exposed in the frontend. The key for this being safe is to enable row level security (RLS) in your database. This is something lovable suggests and normally does for each table.
+
+## Create tests
+
+### How to create tests
+> Work in Progres
 
 Run a local supabase instance and create `.env file`
 
@@ -184,16 +185,17 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 ```
 
-### 5. Run Playwright tests
+### Have automatic tests upon code pushes
 
-Checkout code, create a supabase instance, create database and insert first user, run tests
+You can use the following github action ([.github/workflows/playwright-tests.yml](https://github.com/schub-tech/lovable-production/blob/main/.github/workflows/playwright-tests.yml)) to have your tests automatically run on each push
+
 
 ```jsx
 
 name: Playwright Tests
 
 on:
-  pull_request:
+  push:
     branches:
       - prod
 
